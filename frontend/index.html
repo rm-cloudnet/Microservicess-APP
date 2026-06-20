@@ -12,11 +12,11 @@
         h3 { margin-top: 25px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 5px; }
         ul { list-style-type: none; padding: 0; }
         
-        /* Style for the very last/newest task */
-        .current-task { padding: 12px; background: #d4edda; color: #155724; border-left: 5px solid #28a745; margin-top: 5px; border-radius: 4px; font-weight: bold; }
+        .task-item { display: flex; align-items: center; padding: 10px; margin-top: 5px; border-radius: 4px; }
+        .task-item input { width: auto; margin-top: 0; margin-right: 10px; cursor: pointer; }
         
-        /* Style for historical tasks */
-        .past-task { padding: 10px; background: #f8f9fa; color: #6c757d; border-left: 5px solid #6c757d; margin-top: 5px; border-radius: 4px; }
+        .current-task { background: #d4edda; color: #155724; border-left: 5px solid #28a745; font-weight: bold; }
+        .past-task { background: #f8f9fa; color: #6c757d; border-left: 5px solid #6c757d; text-decoration: line-through; }
         
         .empty-message { color: #999; font-style: italic; font-size: 14px; }
     </style>
@@ -27,10 +27,10 @@
         <input type="text" id="taskInput" placeholder="Enter a new task...">
         <button onclick="addTask()">Add Task</button>
 
-        <h3>Latest Active Task</h3>
+        <h3>Latest Active Tasks</h3>
         <ul id="currentTaskList"></ul>
 
-        <h3>Tasks Previously Added</h3>
+        <h3>Tasks Previously Added (Cache History)</h3>
         <ul id="previousTaskList"></ul>
     </div>
 
@@ -45,35 +45,40 @@
                 const currentList = document.getElementById('currentTaskList');
                 const previousList = document.getElementById('previousTaskList');
                 
-                // Clear both sections before rendering
                 currentList.innerHTML = '';
                 previousList.innerHTML = '';
 
-                if (data.length === 0) {
+                // Filter tasks based on their checked state
+                const activeTasks = data.filter(t => !t.completed);
+                const historicalTasks = data.filter(t => t.completed).reverse();
+
+                // 1. Render Active Tasks
+                if (activeTasks.length === 0) {
                     currentList.innerHTML = '<li class="empty-message">No active tasks.</li>';
-                    previousList.innerHTML = '<li class="empty-message">No history yet.</li>';
-                    return;
+                } else {
+                    activeTasks.forEach(t => {
+                        const li = document.createElement('li');
+                        li.className = 'task-item current-task';
+                        li.innerHTML = `
+                            <input type="checkbox" onchange="toggleStatus('${t.id}', true)">
+                            <span>${t.title}</span>
+                        `;
+                        currentList.appendChild(li);
+                    });
                 }
 
-                // Flask returns items in creation order. The last item in array is the newest.
-                const newestTask = data[data.length - 1];
-                const historicalTasks = data.slice(0, data.length - 1).reverse(); // Reverse so latest history shows up top
-
-                // 1. Render the newest item in the Latest section
-                const liCurrent = document.createElement('li');
-                liCurrent.className = 'current-task';
-                liCurrent.textContent = newestTask.title;
-                currentList.appendChild(liCurrent);
-
-                // 2. Render all older items in the History section
+                // 2. Render Unchecked/Completed Tasks (History Cache)
                 if (historicalTasks.length === 0) {
-                    previousList.innerHTML = '<li class="empty-message">No previous history.</li>';
+                    previousList.innerHTML = '<li class="empty-message">No history cached.</li>';
                 } else {
                     historicalTasks.forEach(t => {
-                        const liPast = document.createElement('li');
-                        liPast.className = 'past-task';
-                        liPast.textContent = t.title;
-                        previousList.appendChild(liPast);
+                        const li = document.createElement('li');
+                        li.className = 'task-item past-task';
+                        li.innerHTML = `
+                            <input type="checkbox" checked onchange="toggleStatus('${t.id}', false)">
+                            <span>${t.title}</span>
+                        `;
+                        previousList.appendChild(li);
                     });
                 }
             } catch (err) { console.error("Error fetching tasks:", err); }
@@ -89,11 +94,21 @@
                     body: JSON.stringify({ title: input.value })
                 });
                 input.value = '';
-                fetchTasks(); // Instantly update view
+                fetchTasks();
             } catch (err) { console.error("Error adding task:", err); }
         }
 
-        // Poll every 3 seconds to stay synced
+        async function toggleStatus(id, isCompleted) {
+            try {
+                await fetch(`${API_URL}/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ completed: isCompleted })
+                });
+                fetchTasks();
+            } catch (err) { console.error("Error updating status:", err); }
+        }
+
         setInterval(fetchTasks, 3000);
         fetchTasks();
     </script>
