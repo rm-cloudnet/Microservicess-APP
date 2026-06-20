@@ -8,8 +8,17 @@
         .container { max-width: 500px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
         input, button { padding: 10px; width: 100%; margin-top: 10px; box-sizing: border-box; }
         button { background-color: #007bff; color: white; border: none; cursor: pointer; }
+        
+        h3 { margin-top: 25px; color: #333; border-bottom: 2px solid #eee; padding-bottom: 5px; }
         ul { list-style-type: none; padding: 0; }
-        li { padding: 10px; background: #eee; margin-top: 5px; border-radius: 4px; }
+        
+        /* Style for the very last/newest task */
+        .current-task { padding: 12px; background: #d4edda; color: #155724; border-left: 5px solid #28a745; margin-top: 5px; border-radius: 4px; font-weight: bold; }
+        
+        /* Style for historical tasks */
+        .past-task { padding: 10px; background: #f8f9fa; color: #6c757d; border-left: 5px solid #6c757d; margin-top: 5px; border-radius: 4px; }
+        
+        .empty-message { color: #999; font-style: italic; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -17,27 +26,56 @@
         <h2>My Cluster Tasks</h2>
         <input type="text" id="taskInput" placeholder="Enter a new task...">
         <button onclick="addTask()">Add Task</button>
-        <ul id="taskList"></ul>
+
+        <h3>Latest Active Task</h3>
+        <ul id="currentTaskList"></ul>
+
+        <h3>Tasks Previously Added</h3>
+        <ul id="previousTaskList"></ul>
     </div>
 
     <script>
-        // In Kubernetes, the frontend container serves static files,
-        // but JavaScript runs in the browser. We will use a relative route
-        // or let Kubernetes reverse-proxy handles this. 
-        // For now, it dynamically hits the backend path.
         const API_URL = '/api/tasks';
 
         async function fetchTasks() {
             try {
                 const res = await fetch(API_URL);
                 const data = await res.json();
-                const list = document.getElementById('taskList');
-                list.innerHTML = '';
-                data.forEach(t => {
-                    const li = document.createElement('li');
-                    li.textContent = t.title;
-                    list.appendChild(li);
-                });
+                
+                const currentList = document.getElementById('currentTaskList');
+                const previousList = document.getElementById('previousTaskList');
+                
+                // Clear both sections before rendering
+                currentList.innerHTML = '';
+                previousList.innerHTML = '';
+
+                if (data.length === 0) {
+                    currentList.innerHTML = '<li class="empty-message">No active tasks.</li>';
+                    previousList.innerHTML = '<li class="empty-message">No history yet.</li>';
+                    return;
+                }
+
+                // Flask returns items in creation order. The last item in array is the newest.
+                const newestTask = data[data.length - 1];
+                const historicalTasks = data.slice(0, data.length - 1).reverse(); // Reverse so latest history shows up top
+
+                // 1. Render the newest item in the Latest section
+                const liCurrent = document.createElement('li');
+                liCurrent.className = 'current-task';
+                liCurrent.textContent = newestTask.title;
+                currentList.appendChild(liCurrent);
+
+                // 2. Render all older items in the History section
+                if (historicalTasks.length === 0) {
+                    previousList.innerHTML = '<li class="empty-message">No previous history.</li>';
+                } else {
+                    historicalTasks.forEach(t => {
+                        const liPast = document.createElement('li');
+                        liPast.className = 'past-task';
+                        liPast.textContent = t.title;
+                        previousList.appendChild(liPast);
+                    });
+                }
             } catch (err) { console.error("Error fetching tasks:", err); }
         }
 
@@ -51,9 +89,11 @@
                     body: JSON.stringify({ title: input.value })
                 });
                 input.value = '';
-                fetchTasks();
+                fetchTasks(); // Instantly update view
             } catch (err) { console.error("Error adding task:", err); }
         }
+
+        // Poll every 3 seconds to stay synced
         setInterval(fetchTasks, 3000);
         fetchTasks();
     </script>
