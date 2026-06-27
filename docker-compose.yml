@@ -21,11 +21,6 @@ services:
       - MONGO_URI=mongodb://mongodb:27017/taskdb
     depends_on:
       - mongodb
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
-      interval: 5s
-      timeout: 3s
-      retries: 3
 
   # 3. Frontend Tier
   frontend:
@@ -34,8 +29,7 @@ services:
     ports:
       - "8080:80"
     depends_on:
-      local_backend:
-        condition: service_healthy  # Wait until the backend is fully running, not just starting
+      - local_backend
 
 volumes:
   mongo_data:
