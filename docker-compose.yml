@@ -15,14 +15,14 @@ services:
     build: ./backend
     container_name: local_backend
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       # We tell Flask to connect to the 'mongodb' service over Docker's internal DNS network
       - MONGO_URI=mongodb://mongodb:27017/taskdb
     depends_on:
       - mongodb
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:5001/"]
       interval: 5s
       timeout: 3s
       retries: 3
